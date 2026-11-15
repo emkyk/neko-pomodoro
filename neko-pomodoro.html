@@ -1,0 +1,778 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>ねこポモドーロ</title>
+  <meta name="description" content="黒猫のノエルとキジトラ猫のダリアの写真といっしょに使うポモドーロタイマー。集中と休憩の時間を自由に設定できます。">
+  <meta name="theme-color" content="#16181D">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Klee+One:wght@400;600&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --night: #16181D;                      /* 写真が読み込まれる前の地 */
+      --white: #FFFFFF;
+      --white-soft: rgba(255, 255, 255, 0.72);
+      --white-faint: rgba(255, 255, 255, 0.16);
+      --glass: rgba(255, 255, 255, 0.1);
+      --marigold: #E3A33A;
+
+      --hand: "Klee One", "Hiragino Maru Gothic ProN", serif;
+      --body: "Zen Kaku Gothic New", "Hiragino Sans", sans-serif;
+
+      --fade-photo: 1.8s;                    /* ふわっと入れ替わる時間 */
+    }
+
+    *, *::before, *::after { box-sizing: border-box; }
+    html { -webkit-text-size-adjust: 100%; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      min-height: 100dvh;
+      background: var(--night);
+      color: var(--white);
+      font-family: var(--body);
+      line-height: 1.6;
+      letter-spacing: 0.03em;
+      -webkit-tap-highlight-color: transparent;
+    }
+    button { font: inherit; color: inherit; }
+    :focus-visible { outline: 3px solid var(--marigold); outline-offset: 3px; }
+
+    /* ── 背景：同じ写真をぼかして敷く ── */
+    .backdrop {
+      position: fixed;
+      inset: 0;
+      overflow: hidden;
+      z-index: 0;
+    }
+    .backdrop img {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      filter: blur(38px) brightness(0.4) saturate(1.15);
+      transform: scale(1.25);
+      opacity: 0;
+      transition: opacity var(--fade-photo) ease;
+    }
+    .backdrop img.on { opacity: 1; }
+
+    /* ── 全体 ── */
+    .app {
+      position: relative;
+      z-index: 1;
+      display: flex;
+      flex-direction: column;
+      width: min(100%, 540px);
+      min-height: 100vh;
+      min-height: 100dvh;
+      margin: 0 auto;
+    }
+
+    /* ── 写真（主役） ── */
+    .photo {
+      position: relative;
+      flex: 1 1 auto;
+      min-height: max(46vh, 300px);
+      overflow: hidden;
+      /* 下のほうは背景へ溶けていく */
+      -webkit-mask-image: linear-gradient(to bottom, #000 0, #000 84%, transparent 100%);
+      mask-image: linear-gradient(to bottom, #000 0, #000 84%, transparent 100%);
+    }
+    @media (min-width: 600px) {
+      .app { padding-top: 24px; }
+      .photo { border-radius: 28px 28px 0 0; }
+    }
+    .photo > img {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      opacity: 0;
+      transform: scale(1.04);
+      transition: opacity var(--fade-photo) ease, transform var(--fade-photo) ease;
+    }
+    .photo > img.on { opacity: 1; transform: scale(1); }
+    /* 集中：ゆっくり静かに寄っていく */
+    body[data-mode="focus"] .photo > img.on.moving { animation: slow-zoom 70s ease-in-out infinite alternate; }
+    /* 休憩：入れ替わるたびに少し動く */
+    body[data-mode="break"] .photo > img.on.moving { animation: lively 5s ease-out both; }
+    @keyframes slow-zoom {
+      from { transform: scale(1); }
+      to { transform: scale(1.14); }
+    }
+    @keyframes lively {
+      from { transform: scale(1.1) translate(1.5%, 1%); }
+      to { transform: scale(1.02) translate(0, 0); }
+    }
+    /* 上だけ少し暗くして見出しを読みやすく */
+    .photo::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(to bottom, rgba(0, 0, 0, 0.45) 0, transparent 22%);
+      pointer-events: none;
+    }
+
+    .topbar {
+      position: absolute;
+      z-index: 2;
+      top: 0;
+      left: 0;
+      right: 0;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      padding: max(16px, env(safe-area-inset-top)) 20px 0;
+    }
+    h1 {
+      margin: 0;
+      font-family: var(--hand);
+      font-weight: 600;
+      font-size: 1.0625rem;
+      letter-spacing: 0.12em;
+      text-shadow: 0 1px 8px rgba(0, 0, 0, 0.4);
+    }
+    .tally {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin: 0;
+      font-size: 0.8125rem;
+      color: var(--white-soft);
+      text-shadow: 0 1px 6px rgba(0, 0, 0, 0.5);
+    }
+    .paws { display: flex; gap: 3px; }
+    .paws svg { width: 16px; height: 16px; fill: rgba(255, 255, 255, 0.35); transition: fill 0.6s ease; }
+    .paws svg.got { fill: var(--marigold); }
+
+    .caption {
+      position: absolute;
+      z-index: 2;
+      left: 20px;
+      top: calc(max(16px, env(safe-area-inset-top)) + 34px);
+      margin: 0;
+      font-family: var(--hand);
+      font-weight: 600;
+      font-size: 0.9375rem;
+      text-shadow: 0 1px 10px rgba(0, 0, 0, 0.6);
+      transition: opacity 0.6s ease;
+    }
+    .caption small {
+      display: block;
+      font-family: var(--body);
+      font-weight: 400;
+      font-size: 0.75rem;
+      color: rgba(255, 255, 255, 0.88);
+      text-shadow: 0 1px 3px rgba(0, 0, 0, 0.7), 0 0 12px rgba(0, 0, 0, 0.5);
+    }
+
+    /* 猫からのひとこと */
+    .call {
+      position: absolute;
+      z-index: 3;
+      top: calc(max(16px, env(safe-area-inset-top)) + 92px);
+      left: 50%;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin: 0;
+      padding: 6px 18px 6px 6px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.94);
+      color: #1E2A40;
+      font-family: var(--hand);
+      font-weight: 600;
+      font-size: 1.0625rem;
+      white-space: nowrap;
+      box-shadow: 0 10px 28px -10px rgba(0, 0, 0, 0.55);
+      opacity: 0;
+      transform: translate(-50%, -8px);
+      transition: opacity 0.4s ease, transform 0.4s ease;
+      pointer-events: none;
+    }
+    .call.show { opacity: 1; transform: translate(-50%, 0); }
+    .call img { width: 36px; height: 36px; border-radius: 50%; object-fit: cover; }
+
+    /* ── 下のパネル ── */
+    .panel {
+      position: relative;
+      z-index: 2;
+      margin-top: -40px;
+      padding: 0 20px max(22px, env(safe-area-inset-bottom));
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+    }
+    .mode {
+      margin: 0;
+      font-size: 0.875rem;
+      font-weight: 500;
+      color: var(--white-soft);
+      text-shadow: 0 1px 8px rgba(0, 0, 0, 0.5);
+    }
+    .mode b { color: var(--white); font-weight: 700; }
+    body[data-mode="break"] .mode b { color: var(--marigold); }
+
+    .time {
+      margin: 0;
+      font-family: var(--hand);
+      font-weight: 600;
+      font-size: clamp(4.75rem, 23vw, 7.5rem);
+      line-height: 1.02;
+      letter-spacing: 0;
+      /* 写真の明るさにかかわらず読めるように */
+      text-shadow: 0 2px 4px rgba(0, 0, 0, 0.35), 0 6px 30px rgba(0, 0, 0, 0.55);
+    }
+    .time .d { display: inline-block; width: 0.6em; text-align: center; }
+    .time .c { display: inline-block; width: 0.3em; text-align: center; transform: translateY(-0.06em); transition: opacity 0.3s; }
+    body:not(.running) .time .c { opacity: 0.45; }
+
+    .progress {
+      position: relative;
+      width: min(100%, 320px);
+      height: 3px;
+      margin-top: 10px;
+      border-radius: 2px;
+      background: var(--white-faint);
+    }
+    .progress span {
+      position: absolute;
+      inset: 0 auto 0 0;
+      width: 0%;
+      border-radius: 2px;
+      background: var(--white);
+      transition: width 0.4s linear, background-color 0.6s ease;
+    }
+    body[data-mode="break"] .progress span { background: var(--marigold); }
+
+    .controls {
+      display: grid;
+      grid-template-columns: 1.4fr 1fr 1fr;
+      gap: 10px;
+      width: 100%;
+      max-width: 420px;
+      margin-top: 22px;
+    }
+    .controls button {
+      min-height: 58px;
+      padding: 0 8px;
+      border-radius: 999px;
+      border: 1.5px solid transparent;
+      background: transparent;
+      font-weight: 700;
+      font-size: 1.0625rem;
+      letter-spacing: 0.1em;
+      white-space: nowrap;
+      cursor: pointer;
+      touch-action: manipulation;
+      transition: opacity 0.15s ease, background-color 0.15s ease, transform 0.1s ease;
+    }
+    .controls button:active:not(:disabled) { transform: scale(0.97); }
+    .controls button:disabled { cursor: default; }
+    #startBtn { background: var(--white); color: #1A1C22; }
+    #startBtn:hover:not(:disabled) { opacity: 0.9; }
+    #startBtn:disabled { background: var(--white-faint); color: rgba(255, 255, 255, 0.45); }
+    #stopBtn { border-color: rgba(255, 255, 255, 0.7); }
+    #stopBtn:hover:not(:disabled) { background: var(--glass); }
+    #stopBtn:disabled { opacity: 0.3; }
+    #resetBtn { color: var(--white-soft); font-weight: 500; }
+    #resetBtn:hover { color: var(--white); background: var(--glass); }
+
+    /* 時間の設定 */
+    .settings {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      width: 100%;
+      max-width: 420px;
+      margin: 16px 0 0;
+      padding: 0;
+      border: 0;
+      min-width: 0;
+    }
+    .settings legend { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+    .stepper {
+      display: grid;
+      grid-template-columns: 44px 1fr 44px;
+      align-items: center;
+      padding: 6px;
+      border-radius: 999px;
+      background: var(--glass);
+      transition: opacity 0.3s ease;
+    }
+    .stepper .label {
+      display: flex;
+      flex-direction: column;
+      line-height: 1.2;
+    }
+    .stepper .label span { font-size: 0.6875rem; color: var(--white-soft); }
+    .stepper output { font-weight: 700; font-size: 1.0625rem; font-variant-numeric: tabular-nums; }
+    .stepper button {
+      width: 44px;
+      height: 44px;
+      border: 0;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.12);
+      font-size: 1.375rem;
+      line-height: 1;
+      cursor: pointer;
+      touch-action: manipulation;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    .stepper button:hover:not(:disabled) { background: rgba(255, 255, 255, 0.2); }
+    .stepper button:disabled { opacity: 0.3; cursor: default; }
+    .settings[disabled] .stepper { opacity: 0.45; }
+
+    .note {
+      min-height: 1.6em;
+      margin: 10px 0 0;
+      font-size: 0.75rem;
+      color: var(--white-soft);
+    }
+
+    .sr-only {
+      position: absolute; width: 1px; height: 1px; margin: -1px;
+      overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+    }
+
+    @media (max-width: 380px) {
+      .controls button { letter-spacing: 0.04em; font-size: 1rem; }
+      .panel { padding-left: 16px; padding-right: 16px; }
+    }
+    @media (max-height: 700px) {
+      .time { font-size: clamp(4rem, 19vw, 6rem); }
+      .controls button { min-height: 52px; }
+      .controls { margin-top: 16px; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation: none !important;
+        transition-duration: 0.01s !important;
+      }
+    }
+  </style>
+</head>
+<body data-mode="focus">
+  <!-- ぼかした背景（写真と同じものを2枚の層で入れ替え） -->
+  <div class="backdrop" aria-hidden="true">
+    <img class="layer" alt="">
+    <img class="layer" alt="">
+  </div>
+
+  <div class="app">
+    <section class="photo" aria-label="ノエルとダリアの写真">
+      <!-- 2枚の層を交互に使って、ふわっと入れ替える（写真の一覧はスクリプトの PHOTOS） -->
+      <img class="layer" alt="" fetchpriority="high">
+      <img class="layer" alt="">
+
+      <div class="topbar">
+        <h1>ねこポモドーロ</h1>
+        <p class="tally">
+          <span class="paws" id="paws" aria-hidden="true"></span>
+          <span id="count">今日 0回</span>
+        </p>
+      </div>
+
+      <p class="caption" id="caption" aria-live="off"></p>
+
+      <p class="call" id="call" aria-hidden="true"><img id="callFace" src="img/dahlia-face.jpg" alt="" width="56" height="56"><span id="callText"></span></p>
+    </section>
+
+    <section class="panel" aria-label="タイマー">
+      <p class="mode" id="mode"><b>集中</b>の時間</p>
+      <p class="time" id="time" role="timer" aria-live="off"></p>
+      <div class="progress" aria-hidden="true"><span id="bar"></span></div>
+
+      <div class="controls">
+        <button type="button" id="startBtn">開始</button>
+        <button type="button" id="stopBtn" disabled>停止</button>
+        <button type="button" id="resetBtn">リセット</button>
+      </div>
+
+      <fieldset class="settings" id="settings">
+        <legend>時間の設定</legend>
+        <div class="stepper">
+          <button type="button" data-key="focus" data-step="-1" aria-label="集中時間を1分短く">−</button>
+          <div class="label"><span>集中</span><output id="focusOut" aria-live="polite">25分</output></div>
+          <button type="button" data-key="focus" data-step="1" aria-label="集中時間を1分長く">＋</button>
+        </div>
+        <div class="stepper">
+          <button type="button" data-key="break" data-step="-1" aria-label="休憩時間を1分短く">−</button>
+          <div class="label"><span>休憩</span><output id="breakOut" aria-live="polite">5分</output></div>
+          <button type="button" data-key="break" data-step="1" aria-label="休憩時間を1分長く">＋</button>
+        </div>
+      </fieldset>
+      <p class="note" id="note">＋−の長押しで早送りできます。</p>
+    </section>
+  </div>
+  <p class="sr-only" id="announce" aria-live="polite"></p>
+
+  <script>
+    (() => {
+      // ?demo を付けると「1分」を1秒として動きます（動作確認用）
+      const demo = new URLSearchParams(location.search).has('demo');
+      const UNIT = demo ? 1000 : 60000;
+      const LIMITS = { focus: [1, 60], break: [1, 10] };
+      const DEFAULTS = { focus: 25, break: 5 };
+      const STORE_KEY = 'neko-pomodoro:minutes';
+
+      const $ = (id) => document.getElementById(id);
+      const timeEl = $('time'), bar = $('bar'), modeEl = $('mode');
+      const startBtn = $('startBtn'), stopBtn = $('stopBtn'), resetBtn = $('resetBtn');
+      const settingsEl = $('settings'), noteEl = $('note');
+      const out = { focus: $('focusOut'), break: $('breakOut') };
+      const callEl = $('call'), callFace = $('callFace'), callText = $('callText');
+      const captionEl = $('caption'), announce = $('announce');
+      const countEl = $('count'), pawsEl = $('paws');
+
+      // ── 設定の読み書き（使えない環境でも動くように） ──
+      const clamp = (v, [lo, hi]) => Math.min(hi, Math.max(lo, Math.round(Number(v) || lo)));
+      function loadMinutes() {
+        try {
+          const saved = JSON.parse(localStorage.getItem(STORE_KEY) || 'null');
+          if (saved) return { focus: clamp(saved.focus, LIMITS.focus), break: clamp(saved.break, LIMITS.break) };
+        } catch (e) { /* 読めなければ初期値 */ }
+        return { ...DEFAULTS };
+      }
+      function saveMinutes() {
+        try { localStorage.setItem(STORE_KEY, JSON.stringify(minutes)); } catch (e) { /* 保存できなくても動作は続ける */ }
+      }
+      const minutes = loadMinutes();
+      const duration = (mode) => minutes[mode] * UNIT;
+
+      // ── 肉球（4回でひとめぐり） ──
+      const PAW = '<svg viewBox="0 0 20 20"><ellipse cx="10" cy="13.2" rx="4.8" ry="4"/><circle cx="4.3" cy="8" r="2.1"/><circle cx="7.9" cy="4.6" r="2.1"/><circle cx="12.1" cy="4.6" r="2.1"/><circle cx="15.7" cy="8" r="2.1"/></svg>';
+      pawsEl.innerHTML = PAW.repeat(4);
+      const pawIcons = [...pawsEl.querySelectorAll('svg')];
+
+      // ── 写真 ──
+      // who: noel／dahlia／both（2匹いっしょ）　mode: focus＝寝ている・くつろいでいる／break＝遊んでいる・こちらを見ている
+      // pos: 縦長の画面で切り取るときに残したい場所
+      const PHOTOS = [
+        { src: 'both1',   who: 'both',   mode: 'focus', cap: '窓辺で見張り中',     pos: '50% 72%', alt: '窓辺に並んで座り、外をながめるダリアとノエル' },
+        { src: 'both2',   who: 'both',   mode: 'focus', cap: 'ベッドでまったり',   pos: '50% 55%', alt: '紫のベッドで寄りそってくつろぐノエルとダリア' },
+        { src: 'both6',   who: 'both',   mode: 'focus', cap: '窓辺でひなたぼっこ', pos: '62% 50%', alt: '窓辺で寝そべるダリアと、それを見守るノエル' },
+        { src: 'noel2',   who: 'noel',   mode: 'focus', cap: 'すやすや',           pos: '46% 40%', alt: '前足をのばして眠るノエル' },
+        { src: 'noel3',   who: 'noel',   mode: 'focus', cap: 'へそ天でおやすみ',   pos: '40% 45%', alt: 'あおむけで眠るノエル' },
+        { src: 'noel7',   who: 'noel',   mode: 'focus', cap: '腕まくらでうとうと', pos: '66% 50%', alt: '腕に顔をのせてうとうとするノエル' },
+        { src: 'dahlia3', who: 'dahlia', mode: 'focus', cap: '窓の外をながめて',   pos: '50% 50%', alt: 'ブラインドの前に座って外を見るダリア' },
+        { src: 'dahlia4', who: 'dahlia', mode: 'focus', cap: 'ぬいぐるみと夢の中', pos: '48% 50%', alt: 'ぬいぐるみを抱いて眠るダリア' },
+        { src: 'dahlia5', who: 'dahlia', mode: 'focus', cap: '横顔でひとやすみ',   pos: '60% 40%', alt: '寝そべって横を向くダリア' },
+        { src: 'dahlia6', who: 'dahlia', mode: 'focus', cap: 'ハウスでまったり',   pos: '40% 45%', alt: '猫ハウスの中で香箱座りをするダリア' },
+
+        { src: 'both3',   who: 'both',   mode: 'break', cap: 'なにして遊ぶ？',     pos: '50% 45%', alt: 'こちらを見つめるダリアと、うしろに座るノエル' },
+        { src: 'both4',   who: 'both',   mode: 'break', cap: 'ちょいちょい',       pos: '60% 40%', alt: '前足を上げてダリアにじゃれるノエル' },
+        { src: 'both5',   who: 'both',   mode: 'break', cap: 'のびーっ',           pos: '45% 45%', alt: '窓にのびあがるノエルと、見上げるダリア' },
+        { src: 'noel1',   who: 'noel',   mode: 'break', cap: 'まんまる目',         pos: '54% 45%', alt: '目をまんまるにしてこちらを見るノエル' },
+        { src: 'noel4',   who: 'noel',   mode: 'break', cap: 'じっと見てる',       pos: '50% 50%', alt: '台の上に座ってこちらを見つめるノエル' },
+        { src: 'noel5',   who: 'noel',   mode: 'break', cap: 'どうしたの？',       pos: '58% 40%', alt: '紫の布団の上でこちらを見るノエル' },
+        { src: 'noel6',   who: 'noel',   mode: 'break', cap: 'ごろんごろん',       pos: '36% 50%', alt: 'あおむけで前足を上げるノエル' },
+        { src: 'dahlia1', who: 'dahlia', mode: 'break', cap: 'こっち見た',         pos: '50% 30%', alt: 'しま模様の敷物の上でこちらを見るダリア' },
+        { src: 'dahlia2', who: 'dahlia', mode: 'break', cap: '大あくび',           pos: '50% 25%', alt: '大きな口をあけてあくびをするダリア' },
+        { src: 'dahlia7', who: 'dahlia', mode: 'break', cap: 'なにか見つけた？',   pos: '50% 35%', alt: '背すじをのばして上を見上げるダリア' },
+      ];
+      const WHO_NAME = { noel: 'ノエル', dahlia: 'ダリア', both: 'ノエルとダリア' };
+      const photoUrl = (p) => `img/${p.src}.jpg`;
+
+      // ランダムな順番で、ノエルとダリアを交互に。2匹いっしょの写真は3枚に1枚。
+      // 集中と休憩をまたいでも交互が続くように、出す直前に次の猫を決める
+      const shuffle = (arr) => {
+        const a = [...arr];
+        for (let i = a.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [a[i], a[j]] = [a[j], a[i]];
+        }
+        return a;
+      };
+      const bags = { focus: {}, break: {} };       // 猫ごとの「くじ袋」。全部出たら混ぜ直す
+      let lastCat = Math.random() < 0.5 ? 'noel' : 'dahlia';
+      let sinceBoth = Math.floor(Math.random() * 3);
+      let lastShown = null;
+      const pending = { focus: null, break: null };
+
+      const nextWho = () => (sinceBoth >= 2 ? 'both' : (lastCat === 'noel' ? 'dahlia' : 'noel'));
+      function draw(mode, who) {
+        let bag = bags[mode][who];
+        if (!bag || !bag.length) {
+          bag = bags[mode][who] = shuffle(PHOTOS.filter((p) => p.mode === mode && p.who === who));
+          // 混ぜ直した直後に、さっきと同じ写真が来ないように
+          if (bag.length > 1 && lastShown && bag[bag.length - 1].src === lastShown.src) {
+            [bag[0], bag[bag.length - 1]] = [bag[bag.length - 1], bag[0]];
+          }
+        }
+        return bag.pop();
+      }
+      function peekPhoto(mode) {
+        const who = nextWho();
+        if (pending[mode] && pending[mode].who !== who) {
+          bags[mode][pending[mode].who].push(pending[mode]);   // 予定がずれたら袋に戻す
+          pending[mode] = null;
+        }
+        if (!pending[mode]) pending[mode] = draw(mode, who);
+        return pending[mode];
+      }
+      function takePhoto(mode) {
+        const p = peekPhoto(mode);
+        pending[mode] = null;
+        if (p.who === 'both') sinceBoth = 0;
+        else { sinceBoth += 1; lastCat = p.who; }
+        lastShown = p;
+        return p;
+      }
+      const preloaded = new Set();
+      function preload(p) {
+        if (!p || preloaded.has(p.src)) return;
+        preloaded.add(p.src);
+        const im = new Image();
+        im.src = photoUrl(p);
+      }
+
+      const layers = [...document.querySelectorAll('.photo > img.layer')];
+      const blurs = [...document.querySelectorAll('.backdrop img.layer')];
+      let front = 1, showToken = 0;
+      function showPhoto(p) {
+        const token = ++showToken;
+        const back = 1 - front;
+        const img = layers[back], blur = blurs[back];
+        const reveal = () => {
+          if (token !== showToken) return;           // 読み込み中に次の写真が来たら古い方は捨てる
+          layers[front].classList.remove('on', 'moving');
+          blurs[front].classList.remove('on');
+          img.classList.remove('moving');
+          void img.offsetWidth;
+          img.classList.add('on', 'moving');
+          blur.classList.add('on');
+          front = back;
+          captionEl.innerHTML = `${p.cap}<small>${WHO_NAME[p.who]}</small>`;
+        };
+        img.onload = img.onerror = null;
+        img.style.objectPosition = p.pos;
+        img.alt = p.alt;
+        img.src = photoUrl(p);
+        blur.src = photoUrl(p);
+        preloaded.add(p.src);
+        if (img.complete && img.naturalWidth) reveal();
+        else img.onload = img.onerror = reveal;
+      }
+
+      let photoMode = null, cycleTimer = null;
+      function setScene(mode) {
+        if (mode === photoMode) return;
+        photoMode = mode;
+        clearInterval(cycleTimer);
+        showPhoto(takePhoto(mode));
+        if (mode === 'focus') {
+          // 集中中は1枚をゆっくり。休憩の最初の1枚は先に読み込んでおく
+          preload(peekPhoto('break'));
+        } else {
+          preload(peekPhoto('break'));
+          cycleTimer = setInterval(() => {
+            showPhoto(takePhoto('break'));
+            preload(peekPhoto('break'));
+          }, 4500);
+        }
+      }
+
+      // ── タイマーの状態 ──
+      // locked：一度開始したら、リセットするまで設定は変えられない
+      const state = { mode: 'focus', remaining: duration('focus'), running: false, locked: false, endAt: 0, done: 0 };
+      let timerId = null, callTimer = null;
+
+      // ── にゃー（Web Audio で合成） ──
+      let audio = null;
+      function unlockAudio() {
+        try {
+          if (!audio) audio = new (window.AudioContext || window.webkitAudioContext)();
+          if (audio.state === 'suspended') audio.resume();
+        } catch (e) { audio = null; }
+      }
+      function meow({ pitch = 1, volume = 0.16, length = 0.75 } = {}) {
+        if (!audio) return;
+        const t = audio.currentTime + 0.02;
+        const osc = audio.createOscillator(), vib = audio.createOscillator(), vibGain = audio.createGain();
+        const f1 = audio.createBiquadFilter(), f2 = audio.createBiquadFilter(), gain = audio.createGain();
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(430 * pitch, t);
+        osc.frequency.linearRampToValueAtTime(640 * pitch, t + length * 0.3);
+        osc.frequency.exponentialRampToValueAtTime(380 * pitch, t + length);
+        vib.frequency.value = 5.5;
+        vibGain.gain.value = 9 * pitch;
+        vib.connect(vibGain).connect(osc.frequency);
+        f1.type = 'bandpass'; f1.Q.value = 6;
+        f1.frequency.setValueAtTime(900, t);
+        f1.frequency.linearRampToValueAtTime(1300, t + length * 0.35);
+        f2.type = 'lowpass'; f2.frequency.value = 2600;
+        gain.gain.setValueAtTime(0.0001, t);
+        gain.gain.exponentialRampToValueAtTime(volume, t + 0.08);
+        gain.gain.setValueAtTime(volume, t + length * 0.55);
+        gain.gain.exponentialRampToValueAtTime(0.0001, t + length);
+        osc.connect(f1).connect(f2).connect(gain).connect(audio.destination);
+        osc.start(t); vib.start(t);
+        osc.stop(t + length + 0.05); vib.stop(t + length + 0.05);
+      }
+
+      function say(who, text) {
+        callFace.src = who === 'dahlia' ? 'img/dahlia-face.jpg' : 'img/noel-face.jpg';
+        callText.textContent = text;
+        callEl.classList.add('show');
+        announce.textContent = `${who === 'dahlia' ? 'ダリア' : 'ノエル'}「${text}」`;
+        clearTimeout(callTimer);
+        callTimer = setTimeout(() => callEl.classList.remove('show'), 6500);
+      }
+      function hideCall() { clearTimeout(callTimer); callEl.classList.remove('show'); }
+
+      // ── 表示 ──
+      function render() {
+        const total = Math.max(0, Math.ceil(state.remaining / 1000));
+        const m = String(Math.floor(total / 60)).padStart(2, '0');
+        const s = String(total % 60).padStart(2, '0');
+        const digits = (str) => [...str].map((d) => `<span class="d">${d}</span>`).join('');
+        timeEl.innerHTML = `${digits(m)}<span class="c">:</span>${digits(s)}`;
+        timeEl.setAttribute('aria-label', `残り ${Number(m)}分${Number(s)}秒`);
+        const ratio = 1 - state.remaining / duration(state.mode);
+        bar.style.width = `${Math.min(100, Math.max(0, ratio * 100))}%`;
+
+        document.body.dataset.mode = state.mode;
+        document.body.classList.toggle('running', state.running);
+        modeEl.innerHTML = state.mode === 'focus'
+          ? `<b>集中</b>の時間　つぎは休憩 ${minutes.break}分`
+          : `<b>休憩</b>の時間　つぎは集中 ${minutes.focus}分`;
+
+        startBtn.disabled = state.running;
+        startBtn.textContent = state.locked && !state.running && state.remaining < duration(state.mode) ? '再開' : '開始';
+        stopBtn.disabled = !state.running;
+
+        out.focus.textContent = `${minutes.focus}分`;
+        out.break.textContent = `${minutes.break}分`;
+        settingsEl.disabled = state.locked;
+        if (!state.locked) {
+          settingsEl.querySelectorAll('button').forEach((b) => {
+            const key = b.dataset.key, step = Number(b.dataset.step);
+            b.disabled = step < 0 ? minutes[key] <= LIMITS[key][0] : minutes[key] >= LIMITS[key][1];
+          });
+        }
+        noteEl.textContent = state.locked
+          ? '時間を変えるときは、リセットしてください。'
+          : '＋−の長押しで早送りできます。';
+
+        document.title = state.running
+          ? `${m}:${s} ${state.mode === 'focus' ? '集中' : '休憩'} | ねこポモドーロ`
+          : 'ねこポモドーロ';
+        const filled = state.done === 0 ? 0 : ((state.done - 1) % 4) + 1;
+        pawIcons.forEach((p, i) => p.classList.toggle('got', i < filled));
+        countEl.textContent = `今日 ${state.done}回`;
+        setScene(state.mode);
+      }
+
+      // ── 時間の設定（＋−、長押しで連続） ──
+      function adjust(key, step) {
+        if (state.locked) return false;
+        const next = clamp(minutes[key] + step, LIMITS[key]);
+        if (next === minutes[key]) return false;
+        minutes[key] = next;
+        saveMinutes();
+        if (key === state.mode) state.remaining = duration(state.mode);
+        render();
+        return true;
+      }
+      settingsEl.querySelectorAll('button').forEach((btn) => {
+        const key = btn.dataset.key, step = Number(btn.dataset.step);
+        let holdDelay = null, holdRepeat = null, repeated = false;
+        const stopHold = () => { clearTimeout(holdDelay); clearInterval(holdRepeat); };
+        btn.addEventListener('pointerdown', (e) => {
+          if (btn.disabled || e.button > 0) return;
+          repeated = false;
+          stopHold();
+          holdDelay = setTimeout(() => {
+            repeated = true;
+            holdRepeat = setInterval(() => { if (!adjust(key, step)) stopHold(); }, 90);
+          }, 420);
+        });
+        ['pointerup', 'pointerleave', 'pointercancel'].forEach((t) => btn.addEventListener(t, stopHold));
+        btn.addEventListener('click', () => {
+          if (repeated) { repeated = false; return; }
+          adjust(key, step);
+        });
+        btn.addEventListener('contextmenu', (e) => e.preventDefault());
+      });
+
+      // ── タイマー ──
+      function tick() {
+        if (!state.running) return;
+        state.remaining = state.endAt - Date.now();
+        if (state.remaining <= 0) { complete(); return; }
+        render();
+      }
+      function run() {
+        state.endAt = Date.now() + state.remaining;
+        state.running = true;
+        state.locked = true;
+        clearInterval(timerId);
+        timerId = setInterval(tick, 250);
+        render();
+      }
+      function start() {
+        if (state.running) return;
+        unlockAudio();
+        hideCall();
+        run();
+      }
+      function stop() {
+        if (!state.running) return;
+        state.remaining = Math.max(0, state.endAt - Date.now());
+        state.running = false;
+        clearInterval(timerId);
+        render();
+      }
+      function reset() {
+        clearInterval(timerId);
+        Object.assign(state, { mode: 'focus', remaining: duration('focus'), running: false, locked: false });
+        hideCall();
+        render();
+      }
+      function complete() {
+        clearInterval(timerId);
+        if (state.mode === 'focus') {
+          // 集中おわり → ダリアが呼びに来て、そのまま休憩へ
+          state.done += 1;
+          state.mode = 'break';
+          state.remaining = duration('break');
+          say('dahlia', '休憩だよ！');
+          meow();
+          setTimeout(() => meow({ pitch: 1.12, volume: 0.1, length: 0.45 }), 900);
+          run();
+        } else {
+          // 休憩おわり → ノエルが声をかけ、開始を待つ
+          state.mode = 'focus';
+          state.remaining = duration('focus');
+          state.running = false;
+          say('noel', 'そろそろ始めましょうか');
+          meow({ pitch: 0.78, volume: 0.1, length: 0.9 });
+          render();
+        }
+      }
+
+      startBtn.addEventListener('click', start);
+      stopBtn.addEventListener('click', stop);
+      resetBtn.addEventListener('click', reset);
+      document.addEventListener('keydown', (e) => {
+        if (e.code !== 'Space' || e.target.closest('button')) return;
+        e.preventDefault();
+        state.running ? stop() : start();
+      });
+      document.addEventListener('visibilitychange', tick);
+
+      render();
+    })();
+  </script>
+</body>
+</html>
