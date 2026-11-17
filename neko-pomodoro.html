@@ -151,32 +151,11 @@
     .paws svg { width: 16px; height: 16px; fill: rgba(255, 255, 255, 0.35); transition: fill 0.6s ease; }
     .paws svg.got { fill: var(--marigold); }
 
-    .caption {
-      position: absolute;
-      z-index: 2;
-      left: 20px;
-      top: calc(max(16px, env(safe-area-inset-top)) + 34px);
-      margin: 0;
-      font-family: var(--hand);
-      font-weight: 600;
-      font-size: 0.9375rem;
-      text-shadow: 0 1px 10px rgba(0, 0, 0, 0.6);
-      transition: opacity 0.6s ease;
-    }
-    .caption small {
-      display: block;
-      font-family: var(--body);
-      font-weight: 400;
-      font-size: 0.75rem;
-      color: rgba(255, 255, 255, 0.88);
-      text-shadow: 0 1px 3px rgba(0, 0, 0, 0.7), 0 0 12px rgba(0, 0, 0, 0.5);
-    }
-
     /* 猫からのひとこと */
     .call {
       position: absolute;
       z-index: 3;
-      top: calc(max(16px, env(safe-area-inset-top)) + 92px);
+      top: calc(max(16px, env(safe-area-inset-top)) + 52px);
       left: 50%;
       display: flex;
       align-items: center;
@@ -331,6 +310,112 @@
     .stepper button:disabled { opacity: 0.3; cursor: default; }
     .settings[disabled] .stepper { opacity: 0.45; }
 
+    /* アラーム音の設定 */
+    .sound {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 8px;
+      width: 100%;
+      max-width: 420px;
+      margin-top: 8px;
+    }
+    .sound label.pick {
+      position: relative;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-height: 52px;
+      padding: 0 18px;
+      border-radius: 999px;
+      min-width: 0;
+      background: var(--glass);
+      text-align: left;
+    }
+    .sound .pick > span { font-size: 0.6875rem; color: var(--white-soft); white-space: nowrap; }
+    .sound select {
+      flex: 1;
+      width: 100%;
+      min-width: 0;
+      height: 44px;
+      padding: 0 22px 0 0;
+      border: 0;
+      background: transparent;
+      color: var(--white);
+      font: inherit;
+      font-weight: 700;
+      font-size: 1rem;
+      -webkit-appearance: none;
+      appearance: none;
+      cursor: pointer;
+    }
+    .sound select option { color: #1A1C22; }
+    .sound .pick::after {
+      content: "";
+      position: absolute;
+      right: 20px;
+      top: 50%;
+      width: 8px;
+      height: 8px;
+      border-right: 2px solid var(--white-soft);
+      border-bottom: 2px solid var(--white-soft);
+      transform: translateY(-70%) rotate(45deg);
+      pointer-events: none;
+    }
+    #testBtn {
+      min-height: 52px;
+      padding: 0 20px;
+      border: 1.5px solid rgba(255, 255, 255, 0.5);
+      border-radius: 999px;
+      background: transparent;
+      font-weight: 700;
+      white-space: nowrap;
+      cursor: pointer;
+      touch-action: manipulation;
+    }
+    #testBtn:hover { background: var(--glass); }
+    #testBtn[aria-pressed="true"] { background: var(--white); color: #1A1C22; }
+    .volume {
+      grid-column: 1 / -1;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      min-height: 44px;
+      padding: 0 18px;
+      border-radius: 999px;
+      background: var(--glass);
+    }
+    .volume > span { font-size: 0.6875rem; color: var(--white-soft); white-space: nowrap; }
+    .volume input {
+      flex: 1;
+      height: 28px;
+      accent-color: var(--marigold);
+      cursor: pointer;
+    }
+    .volume output { width: 3em; text-align: right; font-size: 0.875rem; font-variant-numeric: tabular-nums; }
+
+    /* アラームが鳴っている間の「止める」 */
+    #hushBtn {
+      position: fixed;
+      z-index: 10;
+      left: 50%;
+      bottom: max(24px, env(safe-area-inset-bottom));
+      min-height: 60px;
+      padding: 0 34px;
+      border: 0;
+      border-radius: 999px;
+      background: var(--marigold);
+      color: #1A1C22;
+      font-weight: 700;
+      font-size: 1.125rem;
+      letter-spacing: 0.08em;
+      white-space: nowrap;
+      box-shadow: 0 12px 30px -10px rgba(0, 0, 0, 0.6);
+      transform: translateX(-50%);
+      cursor: pointer;
+      touch-action: manipulation;
+    }
+    #hushBtn[hidden] { display: none; }
+
     .note {
       min-height: 1.6em;
       margin: 10px 0 0;
@@ -382,8 +467,6 @@
         </p>
       </div>
 
-      <p class="caption" id="caption" aria-live="off"></p>
-
       <p class="call" id="call" aria-hidden="true"><img id="callFace" src="img/dahlia-face.jpg" alt="" width="56" height="56"><span id="callText"></span></p>
     </section>
 
@@ -411,9 +494,27 @@
           <button type="button" data-key="break" data-step="1" aria-label="休憩時間を1分長く">＋</button>
         </div>
       </fieldset>
+
+      <div class="sound">
+        <label class="pick"><span>アラーム</span>
+          <select id="soundSel" aria-label="アラーム音">
+            <option value="jiho">時報</option>
+            <option value="bell">目覚まし時計</option>
+            <option value="digital">デジタル目覚まし</option>
+            <option value="chime">チャイム</option>
+            <option value="meow">にゃー</option>
+          </select>
+        </label>
+        <button type="button" id="testBtn" aria-pressed="false">音を試す</button>
+        <label class="volume"><span>音量</span>
+          <input type="range" id="volume" min="10" max="100" step="5" value="80" aria-label="音量">
+          <output id="volumeOut">80%</output>
+        </label>
+      </div>
       <p class="note" id="note">＋−の長押しで早送りできます。</p>
     </section>
   </div>
+  <button type="button" id="hushBtn" hidden>アラームを止める</button>
   <p class="sr-only" id="announce" aria-live="polite"></p>
 
   <script>
@@ -431,7 +532,7 @@
       const settingsEl = $('settings'), noteEl = $('note');
       const out = { focus: $('focusOut'), break: $('breakOut') };
       const callEl = $('call'), callFace = $('callFace'), callText = $('callText');
-      const captionEl = $('caption'), announce = $('announce');
+      const announce = $('announce');
       const countEl = $('count'), pawsEl = $('paws');
 
       // ── 設定の読み書き（使えない環境でも動くように） ──
@@ -552,7 +653,6 @@
           img.classList.add('on', 'moving');
           blur.classList.add('on');
           front = back;
-          captionEl.innerHTML = `${p.cap}<small>${WHO_NAME[p.who]}</small>`;
         };
         img.onload = img.onerror = null;
         img.style.objectPosition = p.pos;
@@ -587,17 +687,161 @@
       const state = { mode: 'focus', remaining: duration('focus'), running: false, locked: false, endAt: 0, done: 0 };
       let timerId = null, callTimer = null;
 
-      // ── にゃー（Web Audio で合成） ──
-      let audio = null;
+      // ── アラーム音（Web Audio で合成。音声ファイルは使わない） ──
+      // iPhone は「画面をタップしたとき」にしか音の準備ができないので、
+      // 開始・音を試す・＋−など、どのタップでも準備しておく
+      const SOUND_KEY = 'neko-pomodoro:sound';
+      const sound = (() => {
+        try {
+          const s = JSON.parse(localStorage.getItem(SOUND_KEY) || 'null');
+          if (s) return { kind: s.kind || 'jiho', volume: Math.min(100, Math.max(10, Number(s.volume) || 80)) };
+        } catch (e) { /* 初期値へ */ }
+        return { kind: 'jiho', volume: 80 };
+      })();
+      const saveSound = () => { try { localStorage.setItem(SOUND_KEY, JSON.stringify(sound)); } catch (e) {} };
+
+      let audio = null, unlocked = false;
       function unlockAudio() {
         try {
+          // マナーモード中でも鳴らせるように（対応している Safari のみ）
+          if (navigator.audioSession) navigator.audioSession.type = 'playback';
           if (!audio) audio = new (window.AudioContext || window.webkitAudioContext)();
-          if (audio.state === 'suspended') audio.resume();
+          if (audio.state !== 'running') audio.resume();
+          if (!unlocked) {
+            // 無音を一瞬だけ鳴らして、iPhone の音の制限を解いておく
+            const buf = audio.createBuffer(1, 1, 22050);
+            const src = audio.createBufferSource();
+            src.buffer = buf;
+            src.connect(audio.destination);
+            src.start(0);
+            unlocked = true;
+          }
         } catch (e) { audio = null; }
       }
-      function meow({ pitch = 1, volume = 0.16, length = 0.75 } = {}) {
+      ['pointerdown', 'touchend', 'keydown'].forEach((t) =>
+        document.addEventListener(t, unlockAudio, { passive: true }));
+
+      // 鳴っている音をまとめて止められるよう、1回ごとに出口（master）を作る
+      let ringing = null, ringTimer = null;
+      const hushBtn = $('hushBtn'), testBtn = $('testBtn');
+      function tone(dest, { at, freq, dur, type = 'sine', vol = 0.5, attack = 0.005, decay = null }) {
+        const o = audio.createOscillator(), g = audio.createGain();
+        o.type = type;
+        o.frequency.setValueAtTime(freq, at);
+        g.gain.setValueAtTime(0.0001, at);
+        g.gain.exponentialRampToValueAtTime(vol, at + attack);
+        if (decay) g.gain.exponentialRampToValueAtTime(0.0001, at + dur);   // 鐘のように減っていく
+        else {
+          g.gain.setValueAtTime(vol, at + Math.max(attack, dur - 0.01));
+          g.gain.exponentialRampToValueAtTime(0.0001, at + dur);
+        }
+        o.connect(g).connect(dest);
+        o.start(at);
+        o.stop(at + dur + 0.05);
+      }
+      // 各音の「1回分」を t0 から並べ、長さ（秒）を返す
+      const PATTERNS = {
+        jiho(dest, t0) {          // NHK風の時報：ピッ ピッ ピッ ポーン
+          [0, 1, 2].forEach((i) => tone(dest, { at: t0 + i, freq: 440, dur: 0.12, vol: 0.55 }));
+          tone(dest, { at: t0 + 3, freq: 880, dur: 2.6, vol: 0.6, decay: true });
+          return 6;
+        },
+        bell(dest, t0) {          // 昔ながらのベル：ジリリリ…と小刻みに
+          for (let k = 0; k < 2; k++) {
+            const base = t0 + k * 1.6;
+            for (let i = 0; i < 24; i++) {
+              const at = base + i * 0.045;
+              tone(dest, { at, freq: 2200, dur: 0.035, type: 'square', vol: 0.12 });
+              tone(dest, { at, freq: 3150, dur: 0.03, type: 'triangle', vol: 0.18 });
+            }
+          }
+          return 3.2;
+        },
+        digital(dest, t0) {       // デジタル時計：ピピピピッ
+          for (let i = 0; i < 4; i++) tone(dest, { at: t0 + i * 0.14, freq: 2048, dur: 0.08, type: 'square', vol: 0.18 });
+          return 1.2;
+        },
+        chime(dest, t0) {         // 学校のチャイム（ウェストミンスターの鐘）
+          [659.3, 523.3, 587.3, 392.0].forEach((f, i) => {
+            tone(dest, { at: t0 + i * 0.8, freq: f, dur: 2.2, vol: 0.5, decay: true });
+            tone(dest, { at: t0 + i * 0.8, freq: f * 2, dur: 1.2, vol: 0.12, decay: true });
+          });
+          return 4.4;
+        },
+        meow(dest, t0) {
+          meowAt(dest, t0, {});
+          meowAt(dest, t0 + 0.9, { pitch: 1.12, volume: 0.32, length: 0.45 });
+          return 2.2;
+        },
+      };
+      // 鳴らす長さ：時報とチャイムは1回、ほかはくり返し（最大で約15秒）
+      const RING_SECONDS = { jiho: 6, chime: 9, bell: 15, digital: 15, meow: 8 };
+
+      function stopAlarm() {
+        clearTimeout(ringTimer);
+        if (ringing && audio) {
+          const g = ringing;
+          g.gain.cancelScheduledValues(audio.currentTime);
+          g.gain.setTargetAtTime(0.0001, audio.currentTime, 0.03);
+          setTimeout(() => { try { g.disconnect(); } catch (e) {} }, 300);
+        }
+        ringing = null;
+        hushBtn.hidden = true;
+        testBtn.setAttribute('aria-pressed', 'false');
+        testBtn.textContent = '音を試す';
+      }
+      function ring({ test = false } = {}) {
+        if (!audio) unlockAudio();
         if (!audio) return;
-        const t = audio.currentTime + 0.02;
+        stopAlarm();
+        if (audio.state !== 'running') audio.resume();
+        const master = audio.createGain();
+        master.gain.value = Math.pow(sound.volume / 100, 1.6);   // 耳の感じ方に近づける
+        master.connect(audio.destination);
+        ringing = master;
+        const pattern = PATTERNS[sound.kind] || PATTERNS.jiho;
+        const total = test ? Math.min(6, RING_SECONDS[sound.kind]) : RING_SECONDS[sound.kind];
+        let t = audio.currentTime + 0.05;
+        const end = t + total;
+        do { t += pattern(master, t); } while (t < end - 0.5);
+        if (test) { testBtn.setAttribute('aria-pressed', 'true'); testBtn.textContent = '止める'; }
+        else hushBtn.hidden = false;
+        ringTimer = setTimeout(stopAlarm, (t - audio.currentTime) * 1000 + 200);
+      }
+      hushBtn.addEventListener('click', stopAlarm);
+      testBtn.addEventListener('click', () => (ringing ? stopAlarm() : ring({ test: true })));
+
+      const soundSel = $('soundSel'), volumeEl = $('volume'), volumeOut = $('volumeOut');
+      soundSel.value = sound.kind;
+      volumeEl.value = sound.volume;
+      volumeOut.textContent = `${sound.volume}%`;
+      soundSel.addEventListener('change', () => {
+        sound.kind = soundSel.value;
+        saveSound();
+        ring({ test: true });           // 選んだ音をすぐ聞けるように
+      });
+      volumeEl.addEventListener('input', () => {
+        sound.volume = Number(volumeEl.value);
+        volumeOut.textContent = `${sound.volume}%`;
+        if (ringing && audio) ringing.gain.setTargetAtTime(Math.pow(sound.volume / 100, 1.6), audio.currentTime, 0.05);
+      });
+      volumeEl.addEventListener('change', saveSound);
+
+      // ── 画面が消えないように（対応しているブラウザのみ。動いている間だけ） ──
+      let wakeLock = null;
+      async function keepAwake(on) {
+        try {
+          if (on && !wakeLock && 'wakeLock' in navigator && document.visibilityState === 'visible') {
+            wakeLock = await navigator.wakeLock.request('screen');
+            wakeLock.addEventListener('release', () => { wakeLock = null; });
+          } else if (!on && wakeLock) {
+            await wakeLock.release();
+            wakeLock = null;
+          }
+        } catch (e) { wakeLock = null; }
+      }
+
+      function meowAt(dest, t, { pitch = 1, volume = 0.5, length = 0.75 } = {}) {
         const osc = audio.createOscillator(), vib = audio.createOscillator(), vibGain = audio.createGain();
         const f1 = audio.createBiquadFilter(), f2 = audio.createBiquadFilter(), gain = audio.createGain();
         osc.type = 'sawtooth';
@@ -615,7 +859,7 @@
         gain.gain.exponentialRampToValueAtTime(volume, t + 0.08);
         gain.gain.setValueAtTime(volume, t + length * 0.55);
         gain.gain.exponentialRampToValueAtTime(0.0001, t + length);
-        osc.connect(f1).connect(f2).connect(gain).connect(audio.destination);
+        osc.connect(f1).connect(f2).connect(gain).connect(dest);
         osc.start(t); vib.start(t);
         osc.stop(t + length + 0.05); vib.stop(t + length + 0.05);
       }
@@ -712,17 +956,20 @@
         if (state.remaining <= 0) { complete(); return; }
         render();
       }
-      function run() {
-        state.endAt = Date.now() + state.remaining;
+      function run(endAt = Date.now() + state.remaining) {
+        state.endAt = endAt;
+        state.remaining = endAt - Date.now();
         state.running = true;
         state.locked = true;
         clearInterval(timerId);
         timerId = setInterval(tick, 250);
+        keepAwake(true);
         render();
       }
       function start() {
         if (state.running) return;
         unlockAudio();
+        stopAlarm();
         hideCall();
         run();
       }
@@ -731,45 +978,58 @@
         state.remaining = Math.max(0, state.endAt - Date.now());
         state.running = false;
         clearInterval(timerId);
+        keepAwake(false);
         render();
       }
       function reset() {
         clearInterval(timerId);
+        stopAlarm();
         Object.assign(state, { mode: 'focus', remaining: duration('focus'), running: false, locked: false });
         hideCall();
+        keepAwake(false);
         render();
       }
       function complete() {
         clearInterval(timerId);
+        const late = Date.now() - state.endAt;       // 画面が消えていた間に過ぎた時間
         if (state.mode === 'focus') {
-          // 集中おわり → ダリアが呼びに来て、そのまま休憩へ
+          // 集中おわり → アラームとダリアの呼びかけ。休憩は「本来の終了時刻」から数える
           state.done += 1;
           state.mode = 'break';
-          state.remaining = duration('break');
-          say('dahlia', '休憩だよ！');
-          meow();
-          setTimeout(() => meow({ pitch: 1.12, volume: 0.1, length: 0.45 }), 900);
-          run();
-        } else {
-          // 休憩おわり → ノエルが声をかけ、開始を待つ
-          state.mode = 'focus';
-          state.remaining = duration('focus');
-          state.running = false;
-          say('noel', 'そろそろ始めましょうか');
-          meow({ pitch: 0.78, volume: 0.1, length: 0.9 });
-          render();
+          const breakEnd = state.endAt + duration('break');
+          if (breakEnd > Date.now()) {
+            say('dahlia', '休憩だよ！');
+            if (late < 60000) ring();                // 何分も前に終わっていたなら鳴らさない
+            run(breakEnd);
+            return;
+          }
+          // 休憩の時間もすでに過ぎていた
         }
+        // 休憩おわり → アラームとノエルの声かけ。次の開始を待つ
+        state.mode = 'focus';
+        state.remaining = duration('focus');
+        state.running = false;
+        say('noel', 'そろそろ始めましょうか');
+        if (late < 60000) ring();
+        keepAwake(false);
+        render();
       }
 
       startBtn.addEventListener('click', start);
       stopBtn.addEventListener('click', stop);
       resetBtn.addEventListener('click', reset);
       document.addEventListener('keydown', (e) => {
-        if (e.code !== 'Space' || e.target.closest('button')) return;
+        if (e.code !== 'Space' || e.target.closest('button, select, input')) return;
         e.preventDefault();
         state.running ? stop() : start();
       });
-      document.addEventListener('visibilitychange', tick);
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') {
+          if (audio && audio.state !== 'running') audio.resume().catch(() => {});
+          if (state.running) keepAwake(true);   // 画面に戻ったら、消えない設定をかけ直す
+        }
+        tick();
+      });
 
       render();
     })();
